@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ZIP Code Selector</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <!-- Leaflet Draw CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css" />
+    <style>
+        #map { height: 100vh; }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<!-- Leaflet Draw JS -->
+<script src="https://unpkg.com/leaflet-draw/dist/leaflet.draw.js"></script>
+<!-- Turf.js -->
+<script src="https://unpkg.com/@turf/turf/turf.min.js"></script>
+
+<script>
+    // Initialize the map
+    const map = L.map('map').setView([39.8283, -98.5795], 4); // Centered on USA
+
+    // Add OpenStreetMap tile layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Layer for drawn shapes
+    const drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+
+    // Add draw control
+    const drawControl = new L.Control.Draw({
+        draw: {
+            marker: false,
+            circle: false,
+            circlemarker: false,
+            polyline: false
+        },
+        edit: {
+            featureGroup: drawnItems
+        }
+    });
+    map.addControl(drawControl);
+
+    let zipLayer;
+
+    // Load ZIP code GeoJSON
+    fetch('zipcodes.min.geojson')
+        .then(res => res.json())
+        .then(data => {
+            zipLayer = L.geoJSON(data);
+        });
+
+    // Handle shape drawing
+    map.on(L.Draw.Event.CREATED, function (event) {
+        const layer = event.layer;
+        drawnItems.addLayer(layer);
+
+        const selectedZipCodes = [];
+
+        zipLayer.eachLayer(zipFeature => {
+            if (turf.booleanIntersects(layer.toGeoJSON(), zipFeature.toGeoJSON())) {
+                selectedZipCodes.push(zipFeature.feature.properties.ZCTA5CE10 || zipFeature.feature.properties.ZIP_CODE);
+            }
+        });
+
+        console.log("Selected ZIP Codes:", selectedZipCodes);
+
+        // Example: Send to your API
+        fetch('https://your-api.example.com/zipcodes', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ zipCodes: selectedZipCodes })
+        })
+            .then(res => res.json())
+            .then(resp => {
+                alert("ZIP Codes sent! Response: " + JSON.stringify(resp));
+            });
+    });
+</script>
+
+</body>
+</html>
